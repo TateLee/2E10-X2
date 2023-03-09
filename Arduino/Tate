@@ -1,0 +1,155 @@
+#include <WiFiNINA.h>
+#include <afstandssensor.h>
+
+//Wifi setup
+double distance = 0;
+char ssid[] = "2E10_TC01"; //2E10_TC01 AndroidHotspotB4_FB_8C
+char pass[] = "LindaDoyle"; //LindaDoyle xogus0411
+WiFiServer server(5200);
+int status = WL_IDLE_STATUS;
+
+// Motors
+const int RF = 16;
+const int RB = 15;
+const int LF = 20;
+const int LB = 5;
+
+// Speed
+const int R_EN = 6;
+const int L_EN = 17;
+
+// Sensors
+AfstandsSensor afstandssensor(9,10); //trig, echo
+const int R_IR = 2;
+const int L_IR = 3;
+
+// This will be used to read commands
+String c = "Hi";
+
+
+void setup() {
+  Internet();
+  pinModes();
+
+  // we are using interrupt here
+  attachInterrupt(digitalPinToInterrupt(R_IR), turnRight, LOW);
+  attachInterrupt(digitalPinToInterrupt(L_IR), turnLeft, LOW);
+}
+
+void loop() {
+  delay(250);
+  interrupts();
+  
+  distance = afstandssensor.afstandCM();
+  Serial.println(c);
+  Serial.println(distance);
+  WiFiClient client = server.available();
+  if (client.connected()) {
+    Serial.println("Connected");
+    client.write("Hello World");
+    c = client.readString();
+  }
+  if (c == "go") {
+    interrupts();
+    if (distance <= 15) {
+      noInterrupts();
+      rightMotor(0, 0);
+      leftMotor(0, 0);
+      //Serial.println(distance);
+      server.write(distance);
+      delay (500);
+    } 
+    
+    else {
+      rightMotor(2, 200);
+      leftMotor(2, 200);
+    }
+  } 
+  
+  else if (c == "stop") {
+    //If Processing sends "stop" stop both motors. noInterrupts is used so that the IR sensors dont move the buggy
+    
+    noInterrupts();
+    leftMotor(0, 0);
+    rightMotor(0, 0);
+  }
+  //delay (100);
+}
+
+void Internet() {
+  Serial.begin(9600);
+  while (status != WL_CONNECTED) {
+    Serial.print("Attempting to connect to network: ");
+    Serial.println(ssid);
+    // Connect to WPA/WPA2 network:
+    status = WiFi.begin(ssid, pass);
+    // wait 3 seconds for connection:
+    delay(3000);
+  }
+  //Gets ip address of the buggy
+  IPAddress ip = WiFi.localIP();
+  Serial.print("IP Address: ");
+  //Starts arduino as server
+  server.begin();
+  Serial.println(ip);
+}
+
+void pinModes() {
+  pinMode(RF, OUTPUT);
+  pinMode(RB, OUTPUT);
+  pinMode(LF, OUTPUT);
+  pinMode(LB, OUTPUT);
+  pinMode(R_EN, OUTPUT);
+  pinMode(L_EN, OUTPUT);
+}
+
+
+void leftMotor(int direction, int speed) {
+  analogWrite(R_EN, speed);
+  switch (direction) {
+    case 0: //stop
+      digitalWrite(RF, LOW);
+      digitalWrite(RB, LOW);
+      break;
+    case 1: // forward
+      digitalWrite(RF, HIGH);
+      digitalWrite(RB, LOW);
+      break;
+    case 2: // backward
+      digitalWrite(RF, LOW);
+      digitalWrite(RB, HIGH);
+      break;
+  }
+}
+
+void speedUp() {
+  
+
+}
+
+void rightMotor(int direction, int speed) {
+  analogWrite(L_EN, speed);
+  switch (direction) {
+    case 0: //stop
+      digitalWrite(LF, LOW);
+      digitalWrite(LB, LOW);
+      break;
+    case 1: // forward
+      digitalWrite(LF, HIGH);
+      digitalWrite(LB, LOW);
+      break;
+    case 2: // backward
+      digitalWrite(LF, LOW);
+      digitalWrite(LB, HIGH);
+      break;
+  }
+}
+
+void turnLeft() {
+  rightMotor(2, 255);
+  leftMotor(1, 0);
+}
+void turnRight() {
+  rightMotor(1, 0);
+  leftMotor(2, 255);
+}
